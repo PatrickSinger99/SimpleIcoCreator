@@ -1,34 +1,38 @@
 import os
 import ctypes
 from PIL import Image
-from typing import Optional
+from typing import Optional, List
 
 
-def create_ico(input_image, output_path="./icon", resize=None):
-    image = Image.open(input_image).convert("RGBA")
+def convert_to_ico(path, output_path, sizes: Optional[List[int]] = None):
 
-    # Resizing
-    if resize is not None:
-        image = image.resize((resize, resize))
+    max_size = 256  # Max size that windows supports
 
-    # Save the image as an ico file
-    image.save(os.path.join(output_path, os.path.basename(input_image).split(".")[0] + ".ico"))
+    if sizes is not None:
+        dim_sizes = [(s, s) for s in sizes]
+    else:  # Pick Common sizes
+        dim_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
+    try:
+        # Open and resize image
+        img = Image.open(path)
+        img.thumbnail((max_size, max_size), Image.LANCZOS)  # Keeps aspect ratio
+        width, height = img.size
 
-def convert_to_ico(path, output_path):
-    original_img = Image.open(path)
-    width, height = original_img.size
+        if width == height:  # Square src image
+            transparent_img = img.convert('RGBA')
+        elif width > height:
+            transparent_img = Image.new('RGBA', (max_size, max_size), (255, 0, 0, 0))
+            transparent_img.paste(img, (0, int((width-height)/2)))
+        else:
+            transparent_img = Image.new('RGBA', (max_size, max_size), (255, 0, 0, 0))
+            transparent_img.paste(img, (int((height-width)/2), 0))
 
-    if width == height:  # Square src image
-        transparent_img = original_img
-    elif width > height:
-        transparent_img = Image.new('RGBA', (width, width), (255, 0, 0, 0))
-        transparent_img.paste(original_img, (0, int((width-height)/2)))
-    else:
-        transparent_img = Image.new('RGBA', (height, height), (255, 0, 0, 0))
-        transparent_img.paste(original_img, (int((height-width)/2), 0))
+        transparent_img.save(output_path, sizes=dim_sizes)  # Outpath variable is expected to have ".ico"
+        print("Created ICO file with sizes:", dim_sizes)
 
-    transparent_img.save(output_path)
+    except Exception as e:
+        print("Error when saving as ICO:", e)
 
 
 def set_folder_icon(folder_path, icon_path):
@@ -66,7 +70,7 @@ def load_img(path, set_size: Optional[int]):
     return image
 
 
-def create_checkerboard_pattern(width, height, square_size=10, color1=(200, 200, 200), color2=(255, 255, 255)):
+def create_checkerboard_pattern(width, height, square_size=10, color1=(225, 225, 225), color2=(255, 255, 255)):
 
     img = Image.new("RGB", (width, height), color1)
     for y in range(0, height, square_size):

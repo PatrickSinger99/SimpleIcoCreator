@@ -1,8 +1,8 @@
 import tkinter as tk
 from tkinterdnd2 import DND_FILES  # https://pypi.org/project/tkinterdnd2/
-from typing import Optional, Callable, Tuple
+from typing import Optional, Callable, Tuple, Union, List
 from dataclasses import dataclass
-
+from tkinter import ttk
 
 @dataclass
 class BtnPalette:
@@ -28,17 +28,17 @@ class BtnPalette:
     @classmethod
     def green(cls):
         return cls(
-            bg=("#90C67C", "#67AE6E", "#328E6E"),
-            border=("#67AE6E", "#67AE6E", "#328E6E"),
-            text=("#328E6E", "#328E6E", "white")
+            bg=("#8CCC29", "#78B714", "#69A011"),
+            border=("#78B714", "#69A011", "#69A011"),
+            text=("white", "white", "white")
         )
 
     @classmethod
     def green_light(cls):
         return cls(
-            bg=("#E1EEBC", "#67AE6E", "#328E6E"),
-            border=("#67AE6E", "#67AE6E", "#328E6E"),
-            text=("black", "black", "black")
+            bg=("white", "#EBFFC9", "#B1CC86"),
+            border=("#78B714", "#69A011", "#69A011"),
+            text=("#78B714", "#78B714", "white")
         )
 
     @classmethod
@@ -47,6 +47,14 @@ class BtnPalette:
             bg=("#FF7275", "#FF4546", "#FF3538"),
             border=("#FF4546", "#FF4546", "#FF3538"),
             text=("black", "black", "black")
+        )
+
+    @classmethod
+    def red_light(cls):
+        return cls(
+            bg=("white", "#FF4546", "#FF3538"),
+            border=("#FF4546", "#FF4546", "#FF3538"),
+            text=("#FF4546", "#FF4546", "black")
         )
 
 class BorderBtn(tk.Frame):
@@ -133,3 +141,17 @@ class DnDFileCanvas(tk.Canvas):
         if on_drop:
             self.dnd_bind('<<Drop>>', on_drop)
 
+
+class MultiCheckSelector(tk.Frame):
+    def __init__(self, parent, values, defaults: Union[List[bool], bool] = True, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+
+        self.vars = {}
+        for i, size in enumerate(values):
+            var = tk.BooleanVar(value=defaults[i] if type(defaults) is List else defaults)
+            chk = ttk.Checkbutton(self, text=size, variable=var)
+            chk.grid(row=0, column=i)
+            self.vars[size] = var
+
+    def get_selected_sizes(self):
+        return [size for size, var in self.vars.items() if var.get()]
