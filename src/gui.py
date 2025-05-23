@@ -61,9 +61,18 @@ class App(TkinterDnD.Tk):
 
         # Image Infos
         self.dnd_img_info_frame = tk.Frame(self.outer_dnd_frame, bg=self.outer_dnd_frame.cget("bg"))
-        self.dnd_img_info_frame.pack()
+        self.dnd_img_info_frame.pack(fill="x")
 
-        tk.Label(self.dnd_img_info_frame, text="asdasdasdasd").pack()
+        self.dnd_img_info_dims = tk.Label(self.dnd_img_info_frame, bg=self.dnd_img_info_frame.cget("bg"), fg="grey")
+        self.dnd_img_info_dims.pack(side="left")
+
+        self.dnd_img_info_name = tk.Label(self.dnd_img_info_frame, bg=self.dnd_img_info_frame.cget("bg"), fg="grey")
+        self.dnd_img_info_name.pack(side="left")
+
+        self.dnd_img_info_remove_btn = tk.Button(self.dnd_img_info_frame, text="Clear", command=self.load_from_queue,
+                                                 bg=self.dnd_img_info_frame.cget("bg"), relief="flat", cursor="hand2",
+                                                 bd=0, activebackground=self.dnd_img_info_frame.cget("bg"), fg="grey")
+        self.dnd_img_info_remove_btn.pack(side="right")
 
         self.right_wing_frame = tk.Frame(self.content_frame, bg="green", width=200)
         self.right_wing_frame.pack(side="left", anchor="n", pady=10, padx=10)
@@ -236,6 +245,17 @@ class App(TkinterDnD.Tk):
         self.dnd_area.image = tk_img  # Keep reference
         self.update_save_path_entries(path)
         self.displayed_img = path
+        self.update_dnd_img_infos()
+
+    def update_dnd_img_infos(self):
+        try:
+            w, h = Image.open(self.displayed_img).size
+            self.dnd_img_info_dims.config(text=f"{w} x {h}")
+            self.dnd_img_info_name.config(text=os.path.basename(self.displayed_img))
+        except Exception as e:
+            print("Could not update image info:", e)
+            self.dnd_img_info_dims.config(text="")
+            self.dnd_img_info_name.config(text="")
 
     def add_to_queue(self, paths):
 
@@ -257,6 +277,7 @@ class App(TkinterDnD.Tk):
         self.dnd_area.image = None
         self.update_save_path_entries("")
         self.displayed_img = None
+        self.update_dnd_img_infos()
 
     def delete_queue(self):
         self.image_queue.clear()
