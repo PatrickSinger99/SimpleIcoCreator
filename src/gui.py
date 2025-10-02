@@ -1,4 +1,5 @@
 import tkinter as tk
+from gettext import textdomain
 from tkinter import ttk
 from PIL.ImageOps import expand
 from tkinterdnd2 import DND_FILES, TkinterDnD  # https://pypi.org/project/tkinterdnd2/
@@ -11,13 +12,13 @@ from tkinter.font import Font
 import os
 from collections import deque
 from styles import init_styles
+from tkinter import filedialog
 
 
 class App(TkinterDnD.Tk):
     img_preview_size = 320
     img_queue_size = 50
     valid_img_types = ("jpg", "jpeg", "png", "webp", "gif")
-    resize_options = {"16x16": 16, "24x24": 24, "32x32": 32, "48x48": 48, "64x64": 64, "128x128": 128, "256x256": 256}
     cols = {"dnd_border_base": "grey", "dnd_border_valid": "#8CCC29", "dnd_border_invalid": "indian red",
             "action_btn_base": "#90C67C", "action_btn_hover": "#67AE6E", "action_btn_press": "#328E6E"}
 
@@ -33,7 +34,7 @@ class App(TkinterDnD.Tk):
         self.content_frame = tk.Frame(self, bg="light grey", width=200)
         self.content_frame.pack(side="top", fill="x")
 
-        self.left_wing_frame = tk.Frame(self.content_frame, bg=self.content_frame.cget("bg"), width=200)
+        self.left_wing_frame = tk.Frame(self.content_frame, bg=self.content_frame.cget("bg"), width=220)
         self.left_wing_frame.pack(side="left", anchor="n", pady=10, padx=10, fill="y")
         self.left_wing_frame.pack_propagate(False)
 
@@ -48,7 +49,7 @@ class App(TkinterDnD.Tk):
         self.dnd_border_frame.pack()
 
         # Main image DnD area
-        self.dnd_area = DnDFileCanvas(self.dnd_border_frame, on_drag_enter=self.on_drag_enter,
+        self.dnd_area = CropCanvas(self.dnd_border_frame, on_drag_enter=self.on_drag_enter,
                                       on_drag_leave=self.on_drag_leave, on_drop=self.on_drop,
                                       height=App.img_preview_size, width=App.img_preview_size,
                                       bg="grey", bd=0, relief='ridge', highlightthickness=0)
@@ -74,8 +75,19 @@ class App(TkinterDnD.Tk):
                                                  bd=0, activebackground=self.dnd_img_info_frame.cget("bg"), fg="grey")
         self.dnd_img_info_remove_btn.pack(side="right")
 
-        self.right_wing_frame = tk.Frame(self.content_frame, bg="green", width=200)
-        self.right_wing_frame.pack(side="left", anchor="n", pady=10, padx=10)
+        self.right_wing_frame = tk.Frame(self.content_frame, bg=self.content_frame.cget("bg"), width=220)
+        self.right_wing_frame.pack(side="left", anchor="n", pady=10, padx=10, fill="both", expand=True)
+        self.right_wing_frame.pack_propagate(False)
+
+        self.toggle_crop_btn = BorderBtn(master=self.right_wing_frame, text="Crop Image", palette=BtnPalette.green_light(),
+                                         command=self.toggle_crop_mode)
+        self.toggle_crop_btn.pack(side="top", anchor="n", fill="x", expand=True)
+
+        self.preview_frame = tk.Frame(self.right_wing_frame)
+        self.preview_frame.pack(side="bottom")
+
+        self.preview_image = tk.Frame(self.preview_frame)
+        self.preview_image.pack()
 
         """SETTINGS FOOTER"""
 
@@ -92,21 +104,6 @@ class App(TkinterDnD.Tk):
         self.upper_param_frame.pack(side="top", fill="y", expand=True, anchor="w", padx=4, pady=(4, 0))
         self.lower_param_frame = tk.Frame(self.parameter_frame, bg=self.parameter_frame.cget("bg"))
         self.lower_param_frame.pack(side="bottom", fill="y", expand=True, anchor="w", padx=4, pady=(0, 4))
-
-        # Title Label
-        tk.Label(self.upper_param_frame, text="Icon Sizes", bg=self.lower_param_frame.cget("bg")).pack(side="top", anchor="w")
-
-        # OPTIONS: Resize image
-        """
-        self.size_dropbox = ttk.Combobox(self.upper_param_frame, values=list(App.resize_options.keys()), width=8,
-                                         state="readonly")
-        self.size_dropbox.set(list(App.resize_options.keys())[0])
-        self.size_dropbox.pack(side="top", anchor="w")
-        self.size_dropbox.bind("<<ComboboxSelected>>", lambda e: print("Selected Resize:", self.size_dropbox.get()))
-        """
-        self.size_selector = MultiCheckSelector(self.upper_param_frame, values=list(App.resize_options.keys()),
-                                                bg=self.upper_param_frame.cget("bg"))
-        self.size_selector.pack(side="top", anchor="w")
 
         # Title Label
         tk.Label(self.lower_param_frame, text="Save Path", bg=self.lower_param_frame.cget("bg")).pack(side="top", anchor="w")
@@ -170,23 +167,42 @@ class App(TkinterDnD.Tk):
         if isinstance(widget, non_focusable):
             self.focus_set()
 
+    def toggle_crop_mode(self, force_deactivate=False):
+
+        if force_deactivate or self.dnd_area.crop_mode_active:
+            self.dnd_area.reset_crop()
+            self.toggle_crop_btn.btn_config(text="Crop Image")
+            self.toggle_crop_btn.palette = BtnPalette.green_light()
+
+        else:
+            self.dnd_area.enable_crop_mode()
+            self.toggle_crop_btn.btn_config(text="Reset Crop")
+            self.toggle_crop_btn.palette = BtnPalette.red_light()
 
     def get_entry_path(self):
         return os.path.join(self.path_entry_var.get(), self.file_name_entry_var.get() + ".ico")
 
     def on_single_convert_btn(self):
 
-        # Get list of selected sizes
-        sizes = [App.resize_options[size] for size in self.size_selector.get_selected_sizes()]
-        # TODO was if 0
-
         if self.displayed_img is not None:
-            convert_to_ico(path=self.displayed_img, output_path=self.get_entry_path(), sizes=sizes)
+            convert_to_ico(pil_obj=self.dnd_area.get_cropped_image(), output_path=self.get_entry_path())
 
+        self.toggle_crop_mode(force_deactivate=True)
         self.load_from_queue()
 
     def on_convert_and_set_btn(self):
-        pass
+        out_path = self.get_entry_path()
+
+        if self.displayed_img is not None:
+            convert_to_ico(pil_obj=self.dnd_area.get_cropped_image(), output_path=out_path)
+
+        folder_path = filedialog.askdirectory(title="Select a folder")
+
+        if folder_path:
+            set_folder_icon(folder_path, out_path)
+
+        self.toggle_crop_mode(force_deactivate=True)
+        self.load_from_queue()
 
     def on_all_convert_button(self):
         pass
@@ -243,6 +259,7 @@ class App(TkinterDnD.Tk):
         center = int(App.img_preview_size / 2)
         self.dnd_area.create_image(center, center, anchor=tk.CENTER, image=tk_img)
         self.dnd_area.image = tk_img  # Keep reference
+        self.dnd_area.displayed_img_path = path
         self.update_save_path_entries(path)
         self.displayed_img = path
         self.update_dnd_img_infos()
@@ -251,8 +268,13 @@ class App(TkinterDnD.Tk):
         try:
             w, h = Image.open(self.displayed_img).size
             self.dnd_img_info_dims.config(text=f"{w} x {h}")
-            self.dnd_img_info_name.config(text=os.path.basename(self.displayed_img))
+
+            base_name = os.path.basename(self.displayed_img)
+            display_name = base_name if len(base_name) < 32 else base_name[:30] + "..."
+
+            self.dnd_img_info_name.config(text=os.path.basename(display_name))
         except Exception as e:
+
             print("Could not update image info:", e)
             self.dnd_img_info_dims.config(text="")
             self.dnd_img_info_name.config(text="")

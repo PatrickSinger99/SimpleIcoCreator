@@ -4,7 +4,7 @@ from PIL import Image
 from typing import Optional, List
 
 
-def convert_to_ico(path, output_path, sizes: Optional[List[int]] = None):
+def convert_to_ico(pil_obj, output_path, sizes: Optional[List[int]] = None):
 
     max_size = 256  # Max size that windows supports
 
@@ -15,7 +15,7 @@ def convert_to_ico(path, output_path, sizes: Optional[List[int]] = None):
 
     try:
         # Open and resize image
-        img = Image.open(path)
+        img = pil_obj
         img.thumbnail((max_size, max_size), Image.LANCZOS)  # Keeps aspect ratio
         width, height = img.size
 
