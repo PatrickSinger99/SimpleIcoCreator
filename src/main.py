@@ -49,7 +49,7 @@ def populate_queue():
 
 
 def select_queue_image(index: int = 0, overwrite: bool = True):
-    # Only reset if we're actually changing the selected image
+    # Only reset if changing the selected image
     if not overwrite and ss["selected_index"] is not None:
         return
 
@@ -66,42 +66,50 @@ def select_queue_image(index: int = 0, overwrite: bool = True):
 
 def on_crop_change(func):
     """
-    Decorator to call `func` only when the crop changes.
+    Decorator to call `func` only when either:
+      - the cropped image changes, or
+      - the session_state['selected_border'] value changes.
     """
     if "prev_cropped_img" not in ss:
         ss["prev_cropped_img"] = None
+    if "prev_selected_border" not in ss:
+        ss["prev_selected_border"] = ss.get("selected_border")
 
-    current = ss.get("cropped_img")
-    prev = ss.get("prev_cropped_img")
+    current_img = ss.get("cropped_img")
+    prev_img = ss.get("prev_cropped_img")
 
-    # Compare images by bytes
-    if current is not None:
+    # Convert current image to bytes
+    if current_img is not None:
         buf = io.BytesIO()
-        current.save(buf, format="PNG")
+        current_img.save(buf, format="PNG")
         current_bytes = buf.getvalue()
     else:
         current_bytes = None
 
-    if prev is not None:
+    # Convert previous image to bytes
+    if prev_img is not None:
         buf = io.BytesIO()
-        prev.save(buf, format="PNG")
+        prev_img.save(buf, format="PNG")
         prev_bytes = buf.getvalue()
     else:
         prev_bytes = None
 
-    if current_bytes != prev_bytes:
-        func(current)
-        # update the stored previous crop
-        ss["prev_cropped_img"] = current
+    # Get current and previous border values
+    current_border = ss.get("selected_border")
+    prev_border = ss.get("prev_selected_border")
 
+    # Check if either changed
+    if current_bytes != prev_bytes or current_border != prev_border:
+        func(current_img)
+        ss["prev_cropped_img"] = current_img
+        ss["prev_selected_border"] = current_border
 
 
 def upload_frame():
     with st.container(border=True):
         st.subheader("Upload Images")
 
-
-        st.file_uploader("Image Upload", type=["jpg", "jpeg", "png", "webp"], accept_multiple_files=True,
+        st.file_uploader("Image Upload", type=["jpg", "jpeg", "png", "webp", "jfif", "gif"], accept_multiple_files=True,
                          label_visibility="collapsed", key="uploaded_files")
 
         populate_queue()
@@ -139,11 +147,13 @@ def edit_frame():
 
             on_crop_change(update_working_image)
 
-            st.checkbox("Add Border", key="selected_border")
-
-
         else:
             st.info("No image selected")
+
+        st.checkbox("Add Border", key="selected_border")
+
+        if st.button("Skip this image", disabled=len(ss["queue"]) < 1):
+            go_to_next_image()
 
 
 def update_working_image(cropped_img, coords=(21, 21, 225, 225)):
@@ -151,7 +161,7 @@ def update_working_image(cropped_img, coords=(21, 21, 225, 225)):
         return
 
     if ss.get("selected_border"):
-        border = Image.open("borders/basic_square.png").convert("RGBA")
+        border = Image.open("src/borders/basic_square.png").convert("RGBA")
         result = border.copy()  # start with the border
 
         if coords:
@@ -167,27 +177,62 @@ def update_working_image(cropped_img, coords=(21, 21, 225, 225)):
     else:
         ss["working_img"] = cropped_img.convert("RGBA").resize((256, 256))
 
+
+def html_img_preview():
+    st.html(f"""<div style="width:100%; text-align:center;">
+                            <img src="data:image/png;base64,{pil_to_base64(ss.working_img)}" style="width:100%; height:auto;" />
+                            </div>""")
+
+    st.html(f"""
+                <div style="
+                    display:flex;
+                    align-items:flex-end;
+                    justify-content:flex-start;
+                    gap:6px;
+                ">
+                    <!-- Main image -->
+                    <div style="width:106px;">
+                        <img src="data:image/png;base64,{pil_to_base64(ss.working_img)}"
+                             style="width:106px; object-fit:contain;" />
+                    </div>
+
+                    <!-- Smaller image 1 -->
+                    <div style="width:64px;">
+                        <img src="data:image/png;base64,{pil_to_base64(ss.working_img)}"
+                             style="width:64px; object-fit:contain;" />
+                    </div>
+
+                    <!-- Smaller image 2 -->
+                    <div style="width:24px;">
+                        <img src="data:image/png;base64,{pil_to_base64(ss.working_img)}"
+                             style="width:24px; object-fit:contain;" />
+                    </div>
+                </div>
+                """)
+
 def create_frame():
 
     with st.container(border=True):
 
         if ss["working_img"]:
-
-            st.html(f"""<div style="width:100%; text-align:center;">
-                        <img src="data:image/png;base64,{pil_to_base64(ss.working_img)}" style="width:100%; height:auto;" />
-                        </div>""")
+            html_img_preview()
 
         if st.button("Save as ICO", width="stretch"):
             print(ss["working_img"])
             if ss["working_img"]:
-                save_as_ico(ss["working_img"], ss['queue'][ss['selected_index']]["name"])
+                save_as_ico(ss["working_img"], ss['queue'][ss['selected_index']]["name"], download_folder=None)
 
             if ss.go_to_next_img:
-                ss["queue"].pop(ss["selected_index"])
-                select_queue_image()
-                st.rerun()
+                go_to_next_image()
 
         st.checkbox("Go to next image", key="go_to_next_img")
+
+
+def go_to_next_image():
+
+    ss["queue"].pop(ss["selected_index"])
+    select_queue_image()
+    st.rerun()
 
 
 def save_as_ico(pil_img, original_name="image", download_folder=None):
