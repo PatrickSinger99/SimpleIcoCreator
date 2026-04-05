@@ -3,6 +3,7 @@ from PIL import Image, ImageTk
 from tkinter import filedialog
 import os
 from tkinter.font import Font
+from tkinter import colorchooser
 
 from PIL.ImageOps import scale, expand
 
@@ -21,8 +22,9 @@ class App(tk.Tk):
 
     def __init__(self, img_path):
         super().__init__()
-        self.title("ICO Test")
+        self.title("Simple Ico Creator")
         self.resizable(False, False)
+        self.iconbitmap("./static/icon_2.ico")
 
         # Load image
         self.img_original = Image.open(img_path)  # for scaling/cropping
@@ -85,6 +87,11 @@ class App(tk.Tk):
         self.border_frame = tk.Frame(left_col_frame)
         self.border_frame.pack(side="top", padx=App.border_width, pady=(0, App.border_width), fill="both", expand="true")
 
+        tk.Label(self.border_frame, text="Select Border", font=Font(size=9, weight="bold")).pack(padx=5, pady=(5, 0), anchor="w")
+
+        self.color_select_btn = tk.Button(self.border_frame, text="Change Color", command=self.on_color_select)
+        self.color_select_btn.pack()
+
         """PREVIEW SECTION"""
 
         # Frame for all preview views
@@ -99,7 +106,7 @@ class App(tk.Tk):
         self.recalc_preview(disable_direct_update=True)
 
         # Large preview image
-        tk.Label(self.preview_frame, text="Preview", bg=App.file_explorer_bg, font=Font(size=10)).pack(anchor="w", padx=10, pady=(3, 0))
+        tk.Label(self.preview_frame, text="Preview", bg=App.file_explorer_bg, font=Font(size=9, weight="bold")).pack(anchor="w", padx=10, pady=(3, 0))
         self.preview_img_display = tk.Label(self.preview_frame, image=self.img_preview_tk_large,
                                             bg=App.file_explorer_bg, bd=0)
         self.preview_img_display.pack()
@@ -137,20 +144,20 @@ class App(tk.Tk):
         self.action_frame = tk.Frame(right_col_frame)
         self.action_frame.pack(side="bottom", fill="x", pady=(0, App.border_width), padx=(0, App.border_width))
 
-        tk.Label(self.action_frame, text="Only save as file:").pack(anchor="w", padx=10, pady=(3, 0))
+        tk.Label(self.action_frame, text="Only save as file", font=Font(size=9, weight="bold")).pack(anchor="w", padx=10, pady=(3, 0))
 
         save_only_col = tk.Frame(self.action_frame)
         save_only_col.pack(fill="x", padx=10)
 
         # Create only PNG
         self.create_png_btn = tk.Button(save_only_col, text="Save as PNG", command=self.save_as_png, cursor="hand2")
-        self.create_png_btn.pack(side="left", fill="x", expand=True)
+        self.create_png_btn.pack(side="left", fill="x", ipadx=2)
 
         # Create only ICO
         self.create_ico_btn = tk.Button(save_only_col, text="Save as ICO", command=self.save_as_ico, cursor="hand2")
         self.create_ico_btn.pack(side="left", fill="x", expand=True)
 
-        tk.Label(self.action_frame, text="Save and set as folder icon:").pack(padx=10, pady=(10, 0), anchor="w")
+        tk.Label(self.action_frame, text="Save and set as folder icon", font=Font(size=9, weight="bold")).pack(padx=10, pady=(10, 0), anchor="w")
 
         save_set_upper = tk.Frame(self.action_frame)
         save_set_upper.pack(fill="x", padx=10)
@@ -302,6 +309,10 @@ class App(tk.Tk):
         ico_path = os.path.join(self.ico_path_var.get(), f"{self.img_base_name}.ico")
         convert_to_ico(self.img_cropped, output_path=ico_path)
         set_folder_icon(self.img_parent_dir, ico_path)
+
+    def on_color_select(self):
+        color_code = colorchooser.askcolor(title="Choose color")
+        print(color_code)
 
 
 if __name__ == '__main__':
