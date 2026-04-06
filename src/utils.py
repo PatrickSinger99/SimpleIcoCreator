@@ -2,6 +2,17 @@ from PIL import Image
 from typing import Optional, List
 import os
 import ctypes
+import sys
+
+
+def resource_path(relative_path):
+    """Get absolute path to resource (works in dev and PyInstaller)"""
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 
 def convert_to_ico(pil_obj, output_path, sizes: Optional[List[int]] = None):

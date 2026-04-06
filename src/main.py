@@ -1,13 +1,12 @@
 import tkinter as tk
-from PIL import Image, ImageTk
+from PIL import ImageTk
 from tkinter import filedialog
-import os
 from tkinter.font import Font
-from tkinter import colorchooser
-
-from PIL.ImageOps import scale, expand
+import sys
 
 from utils import *
+from preferences import Preferences
+from border_selector import BorderSelector, add_border
 
 
 class App(tk.Tk):
@@ -24,7 +23,7 @@ class App(tk.Tk):
         super().__init__()
         self.title("Simple Ico Creator")
         self.resizable(False, False)
-        self.iconbitmap("./static/icon_2.ico")
+        self.iconbitmap(resource_path("./static/icon_2.ico"))
 
         # Load image
         self.img_original = Image.open(img_path)  # for scaling/cropping
@@ -39,6 +38,12 @@ class App(tk.Tk):
 
         self.total_delta_x = 0
         self.total_delta_y = 0
+
+        # Preference saving
+        self.pref = Preferences()
+        
+        # Border selection tracking
+        self.selected_border = None
 
         """CROP SECTION"""
 
@@ -87,10 +92,13 @@ class App(tk.Tk):
         self.border_frame = tk.Frame(left_col_frame)
         self.border_frame.pack(side="top", padx=App.border_width, pady=(0, App.border_width), fill="both", expand="true")
 
-        tk.Label(self.border_frame, text="Select Border", font=Font(size=9, weight="bold")).pack(padx=5, pady=(5, 0), anchor="w")
+        tk.Label(self.border_frame, text="Select Border", font=Font(size=9, weight="bold")).pack(side="top", padx=5, pady=(5, 0), anchor="w")
 
-        self.color_select_btn = tk.Button(self.border_frame, text="Change Color", command=self.on_color_select)
-        self.color_select_btn.pack()
+        self.border_selector = BorderSelector(self.border_frame, on_selection_change=self.on_border_selection_change)
+        self.border_selector.pack(side="top", fill="x", expand=True)
+
+        # self.color_select_btn = tk.Button(self.border_frame, text="Change Color", command=self.on_color_select)
+        # self.color_select_btn.pack()
 
         """PREVIEW SECTION"""
 
@@ -163,7 +171,7 @@ class App(tk.Tk):
         save_set_upper.pack(fill="x", padx=10)
 
         # Set path for saving icon
-        self.ico_path_var = tk.StringVar()
+        self.ico_path_var = tk.StringVar(value=self.pref.get("ico_save_path"))
         self.ico_path_var.trace_add("write", self.on_ico_path_change)
         self.ico_save_path_entry = tk.Entry(save_set_upper, textvariable=self.ico_path_var)
         self.ico_save_path_entry.pack(side="left", fill="x", expand=True)
@@ -182,7 +190,8 @@ class App(tk.Tk):
         self.save_and_set_parent_btn.pack(side="left", fill="x", expand=True)
 
         # Select Folder to set icon as
-        self.save_and_set_select_btn = tk.Button(save_set_lower, text="Select Folder", cursor="hand2")
+        self.save_and_set_select_btn = tk.Button(save_set_lower, text="Select Folder", cursor="hand2",
+                                                 command=self.on_set_ico_to_custom)
         self.save_and_set_select_btn.pack(side="left", fill="x", expand=True)
 
         self.on_ico_path_change()  # Initial validation
@@ -266,6 +275,12 @@ class App(tk.Tk):
     def recalc_preview(self, disable_direct_update=False):
         self.img_cropped = crop_img(self.img_original, self.crop_xy1, self.crop_xy2, self.total_delta_x,
                                     self.total_delta_y, self.scale)
+        
+        # Apply border if selected
+        if self.selected_border is not None and self.selected_border in self.border_selector.border_items:
+            border_item = self.border_selector.border_items[self.selected_border]
+            if border_item.border_img is not None:
+                self.img_cropped = add_border(self.img_cropped, border_item)
 
         # Resize large preview
         resized_crop_preview = self.img_cropped.resize((App.preview_size, App.preview_size), Image.LANCZOS)
@@ -289,6 +304,7 @@ class App(tk.Tk):
 
     def on_ico_path_change(self, *args):
         path = self.ico_path_var.get()
+        self.ico_save_path_entry.xview_moveto(1.0)
 
         if os.path.isdir(path):
             # valid
@@ -297,6 +313,9 @@ class App(tk.Tk):
             # Enable action buttons
             self.save_and_set_parent_btn.config(state="normal", cursor="hand2")
             self.save_and_set_select_btn.config(state="normal", cursor="hand2")
+
+            self.pref.save("ico_save_path", path)
+
         else:
             # invalid
             self.ico_save_path_entry.config(fg="red")
@@ -305,17 +324,66 @@ class App(tk.Tk):
             self.save_and_set_parent_btn.config(state="disabled", cursor="")
             self.save_and_set_select_btn.config(state="disabled", cursor="")
 
-    def on_set_ico_to_parent(self):
-        ico_path = os.path.join(self.ico_path_var.get(), f"{self.img_base_name}.ico")
-        convert_to_ico(self.img_cropped, output_path=ico_path)
-        set_folder_icon(self.img_parent_dir, ico_path)
 
+    def on_set_ico_to_parent(self):
+
+        ico_path = os.path.join(self.ico_path_var.get().replace("/", "\\"), f"{self.img_base_name}.ico")
+
+        try:
+            convert_to_ico(self.img_cropped, output_path=ico_path)
+            set_folder_icon(self.img_parent_dir, ico_path)
+        except Exception as e:
+            print("Failed to save and set ico to parent folder:", e)
+
+    def on_set_ico_to_custom(self):
+        ico_path = os.path.join(self.ico_path_var.get().replace("/", "\\"), f"{self.img_base_name}.ico")
+        path = filedialog.askdirectory(title="Select folder to set icon to")
+
+        if path:
+
+            try:
+                convert_to_ico(self.img_cropped, output_path=ico_path)
+                set_folder_icon(path, ico_path)
+            except Exception as e:
+                print("Failed to save and set ico to parent folder:", e)
+
+    def on_border_selection_change(self, border_name):
+        """Called when border selection changes"""
+        self.selected_border = border_name
+        self.recalc_preview()  # Trigger preview redraw with new border
+    
+    """
     def on_color_select(self):
         color_code = colorchooser.askcolor(title="Choose color")
         print(color_code)
+    """
+
+
+def is_frozen():
+    """Return True if running as a PyInstaller exe"""
+    return getattr(sys, 'frozen', False)
 
 
 if __name__ == '__main__':
-    app = App(r"E:\GitHub Repositories\SimpleIcoCreator\examples\meowl.jpg")
-    app.mainloop()
+    default_image = r"E:\GitHub Repositories\SimpleIcoCreator\examples\meowl.jpg"
 
+    img_path = None
+
+    # Check for CLI argument (context menu / drag & drop)
+    if len(sys.argv) > 1:
+        potential_path = sys.argv[1]
+
+        if os.path.isfile(potential_path):
+            img_path = potential_path
+
+    # If no image provided
+    if img_path is None:
+        if is_frozen():
+            # Running as EXE → exit silently
+            sys.exit(0)
+        else:
+            # Running as .py → use debug fallback
+            img_path = default_image
+
+    app = App(img_path)
+    app.mainloop()
