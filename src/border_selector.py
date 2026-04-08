@@ -1,5 +1,5 @@
 import tkinter as tk
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import os
 from dataclasses import dataclass
 import json
@@ -15,13 +15,13 @@ class BorderItem:
     img_x2: int
     img_y2: int
     border_img: Optional[Image] = None
+    mask_img: Optional[Image] = None
     tk_sample_obj: Optional[ImageTk.PhotoImage] = None
 
 
 class BorderSelector(tk.Frame):
-    item_size = 80
-    item_border_weight = 8
-    selected_color = "#FF8411"
+    item_size = 70
+    item_border_weight = 5
     content_path = resource_path(r".\static\borders")
 
     def __init__(self, *args, on_selection_change=None, **kwargs):
@@ -53,10 +53,17 @@ class BorderSelector(tk.Frame):
         with open(os.path.join(border_path, "data.json"), "r", encoding="utf-8") as file:
             data = json.load(file)
         border_img_pil = Image.open(os.path.join(border_path, "img.png"))
+        
+        # Load optional mask image
+        mask_img_pil = None
+        mask_path = os.path.join(border_path, "mask.png")
+        if os.path.exists(mask_path):
+            mask_img_pil = Image.open(mask_path)
 
         # Create new border obj
         item_obj = BorderItem(item_name=border_folder, display_name=data["name"],
-                              border_img=border_img_pil, img_x1=data["img_x1"], img_x2=data["img_x2"],
+                              border_img=border_img_pil, mask_img=mask_img_pil,
+                              img_x1=data["img_x1"], img_x2=data["img_x2"],
                               img_y1=data["img_y1"], img_y2=data["img_y2"])
 
         # Create the sample image for display
@@ -68,9 +75,9 @@ class BorderSelector(tk.Frame):
         return item_obj
 
     def draw_item(self, border_item: BorderItem):
-        border_col = BorderSelector.selected_color if border_item.item_name == self.currently_selected else ""
-        item_frame = tk.Frame(self.selector_frame, bg=border_col)
-        border_frame = tk.Frame(item_frame)
+        relief = "raised" if border_item.item_name == self.currently_selected else "flat"
+        item_frame = tk.Frame(self.selector_frame, relief=relief, bd=2)
+        border_frame = tk.Frame(item_frame, )
         border_frame.pack(padx=BorderSelector.item_border_weight, pady=BorderSelector.item_border_weight)
         
         label = tk.Label(border_frame, image=border_item.tk_sample_obj, bd=0, cursor="hand2")
@@ -113,15 +120,33 @@ class BorderSelector(tk.Frame):
         
 
 def add_border(pil_img: Image, item: BorderItem):
-
-    composed_img = item.border_img.copy()
+    # Start with transparent base
+    composed_img = Image.new("RGBA", item.border_img.size, (0, 0, 0, 0))
 
     # Calculate and convert orig img to scale
     target_width = item.img_x2 - item.img_x1
     target_height = item.img_y2 - item.img_y1
     resized_img = pil_img.convert("RGBA").resize((target_width, target_height))
 
-    # Use alpha channel as mask
-    composed_img.paste(resized_img, (item.img_x1, item.img_y1), mask=resized_img.split()[3])
+    if item.mask_img:
+        # Use mask to control where the cover image appears
+        # Crop mask to the target area (same coordinates as cover image placement)
+        mask_cropped = item.mask_img.crop((item.img_x1, item.img_y1, item.img_x2, item.img_y2))
+        
+        # Convert mask to alpha channel (white = visible, black = transparent)
+        if mask_cropped.mode != "L":
+            mask_cropped = mask_cropped.convert("L")
+        
+        # Apply mask to cover image
+        resized_img.putalpha(mask_cropped)
+        
+        # Paste masked cover image onto transparent base
+        composed_img.paste(resized_img, (item.img_x1, item.img_y1), mask=resized_img.split()[3])
+    else:
+        # Original behavior: use alpha channel as mask
+        composed_img.paste(resized_img, (item.img_x1, item.img_y1), mask=resized_img.split()[3])
+    
+    # Paste border image on top (front-most layer)
+    composed_img.paste(item.border_img, (0, 0), mask=item.border_img.split()[3])
 
     return composed_img

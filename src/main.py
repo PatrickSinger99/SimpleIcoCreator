@@ -70,6 +70,7 @@ class App(tk.Tk):
         self.crop_canvas.checkerboard = checkerboard  # Keep reference
 
         # Main image display in canvas
+        self.determine_initial_zoom()
         self.img_canvas = self.crop_canvas.create_image(0, 0, image=self.img_tk, anchor="nw")
 
         # Crop area display in canvas
@@ -90,12 +91,12 @@ class App(tk.Tk):
         """BORDER SECTION"""
 
         self.border_frame = tk.Frame(left_col_frame)
-        self.border_frame.pack(side="top", padx=App.border_width, pady=(0, App.border_width), fill="both", expand="true")
+        self.border_frame.pack(side="top", padx=App.border_width, pady=(0, App.border_width), fill="both", expand=True)
 
         tk.Label(self.border_frame, text="Select Border", font=Font(size=9, weight="bold")).pack(side="top", padx=5, pady=(5, 0), anchor="w")
 
         self.border_selector = BorderSelector(self.border_frame, on_selection_change=self.on_border_selection_change)
-        self.border_selector.pack(side="top", fill="x", expand=True)
+        self.border_selector.pack(side="top", anchor="n", fill="x", expand=True, padx=8)
 
         # self.color_select_btn = tk.Button(self.border_frame, text="Change Color", command=self.on_color_select)
         # self.color_select_btn.pack()
@@ -235,6 +236,17 @@ class App(tk.Tk):
 
         self.recalc_preview()
 
+    def determine_initial_zoom(self):
+        new_scale = min(App.canvas_size / self.img_original.width, App.canvas_size / self.img_original.height)
+        self.scale = new_scale
+
+        # Resize tk image from original
+        new_w = int(self.img_original.width * self.scale)
+        new_h = int(self.img_original.height * self.scale)
+
+        pil_resized = self.img_original.resize((new_w, new_h), Image.LANCZOS)
+        self.img_tk = ImageTk.PhotoImage(pil_resized)
+
     def on_zoom(self, e):
 
         # Determine zoom factor
@@ -299,6 +311,7 @@ class App(tk.Tk):
 
     def on_select_ico_folder(self):
         path = filedialog.askdirectory()
+
         if path:
             self.ico_path_var.set(path)
 
