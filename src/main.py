@@ -3,6 +3,7 @@ from PIL import ImageTk
 from tkinter import filedialog
 from tkinter.font import Font
 import sys
+from datetime import datetime
 
 from utils import *
 from preferences import Preferences
@@ -197,6 +198,15 @@ class App(tk.Tk):
 
         self.on_ico_path_change()  # Initial validation
 
+    def generate_icon_name(self, folder_path):
+        """Generate unique icon name using folder name and datetime code"""
+        folder_name = os.path.basename(folder_path.rstrip(os.sep))
+        # Truncate folder name to max 30 characters
+        folder_name = folder_name[:30] if len(folder_name) > 30 else folder_name
+        # Generate unique code from datetime (YYYYMMDDHHMMSS format)
+        datetime_code = datetime.now().strftime("%Y%m%d%H%M%S")
+        return f"{folder_name}_icon_{datetime_code}.ico"
+
     def save_as_png(self):
         path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")],
                                             initialfile=self.img_base_name)
@@ -337,10 +347,9 @@ class App(tk.Tk):
             self.save_and_set_parent_btn.config(state="disabled", cursor="")
             self.save_and_set_select_btn.config(state="disabled", cursor="")
 
-
     def on_set_ico_to_parent(self):
-
-        ico_path = os.path.join(self.ico_path_var.get().replace("/", "\\"), f"{self.img_base_name}.ico")
+        icon_name = self.generate_icon_name(self.img_parent_dir)
+        ico_path = os.path.join(self.ico_path_var.get().replace("/", "\\"), icon_name)
 
         try:
             convert_to_ico(self.img_cropped, output_path=ico_path)
@@ -349,16 +358,17 @@ class App(tk.Tk):
             print("Failed to save and set ico to parent folder:", e)
 
     def on_set_ico_to_custom(self):
-        ico_path = os.path.join(self.ico_path_var.get().replace("/", "\\"), f"{self.img_base_name}.ico")
         path = filedialog.askdirectory(title="Select folder to set icon to")
 
         if path:
-
+            icon_name = self.generate_icon_name(path)
+            ico_path = os.path.join(self.ico_path_var.get().replace("/", "\\"), icon_name)
+            
             try:
                 convert_to_ico(self.img_cropped, output_path=ico_path)
                 set_folder_icon(path, ico_path)
             except Exception as e:
-                print("Failed to save and set ico to parent folder:", e)
+                print("Failed to save and set ico to custom folder:", e)
 
     def on_border_selection_change(self, border_name):
         """Called when border selection changes"""
@@ -370,7 +380,6 @@ class App(tk.Tk):
         color_code = colorchooser.askcolor(title="Choose color")
         print(color_code)
     """
-
 
 def is_frozen():
     """Return True if running as a PyInstaller exe"""

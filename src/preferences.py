@@ -1,5 +1,6 @@
 import json
 import os
+from utils import user_data_path
 
 
 class Preferences:
@@ -7,7 +8,7 @@ class Preferences:
     default_structure = {"ico_save_path": None}
 
     def __init__(self, save_path="./saved/preferences.json"):
-        self.save_path = save_path
+        self.save_path = user_data_path(save_path)
 
         # Create new file if not exists
         if not os.path.exists(self.save_path):

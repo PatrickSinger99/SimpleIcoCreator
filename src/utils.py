@@ -15,6 +15,20 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+def user_data_path(relative_path):
+    """Get absolute path for user data (preferences, saved files)"""
+    if hasattr(sys, '_MEIPASS'):
+        # For compiled apps, store in user's AppData
+        import pathlib
+        app_name = "SimpleIcoCreator"
+        base_path = os.path.join(pathlib.Path.home(), "AppData", "Local", app_name)
+    else:
+        # For development, use local directory
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
 def convert_to_ico(pil_obj, output_path, sizes: Optional[List[int]] = None):
     """
     Convert a square RGBA PIL image into a multi-size ICO file.
