@@ -1,17 +1,19 @@
 @echo off
+
+:: --- Auto-elevate to admin ---
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    echo Requesting administrative privileges...
+    powershell -Command "Start-Process '%~f0' -ArgumentList 'elevated' -Verb RunAs"
+    exit /b
+)
+if "%1"=="elevated" shift
+
 setlocal ENABLEDELAYEDEXPANSION
 
 echo ========================================
 echo   SimpleIcoCreator Installation
 echo ========================================
-
-REM --- Check for admin rights ---
-net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo Please run this script as Administrator.
-    pause
-    exit /b
-)
 
 REM --- Define install directory ---
 set INSTALL_DIR=%ProgramFiles%\SimpleIcoCreator
@@ -44,12 +46,17 @@ if not exist "%EXE_PATH%" (
     exit /b
 )
 
-REM --- Add context menu entry ---
+REM --- Add context menu entry for general image types ---
 echo Adding context menu...
 
 reg add "HKCR\SystemFileAssociations\image\shell\ConvertToIco" /ve /d "Convert to ICO" /f
 reg add "HKCR\SystemFileAssociations\image\shell\ConvertToIco" /v "Icon" /d "\"%EXE_PATH%\"" /f
 reg add "HKCR\SystemFileAssociations\image\shell\ConvertToIco\command" /ve /d "\"%EXE_PATH%\" \"%%1\"" /f
+
+REM --- Add context menu for WEBP explicitly ---
+reg add "HKCR\.webp\shell\ConvertToIco" /ve /d "Convert to ICO" /f
+reg add "HKCR\.webp\shell\ConvertToIco" /v "Icon" /d "\"%EXE_PATH%\"" /f
+reg add "HKCR\.webp\shell\ConvertToIco\command" /ve /d "\"%EXE_PATH%\" \"%%1\"" /f
 
 echo.
 echo Installation complete.
