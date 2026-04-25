@@ -103,7 +103,7 @@ def crop_img(pil_img, crop_xy1, crop_xy2, delta_x, delta_y, scale):
     return result
 
 
-def set_folder_icon(folder_path, icon_path):
+def OLD_set_folder_icon(folder_path, icon_path):
     desktop_ini = os.path.join(folder_path, "desktop.ini")
 
     # Remove desktop.ini if already there
@@ -125,3 +125,44 @@ def set_folder_icon(folder_path, icon_path):
 
     # Refresh view on explorer, to avoid old thumbs being shown
     ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
+
+
+def set_folder_icon(folder_path, icon_path):
+    desktop_ini = os.path.join(folder_path, "desktop.ini")
+
+    if os.path.exists(desktop_ini):
+        os.remove(desktop_ini)
+
+    with open(desktop_ini, "w") as f:
+        f.write(
+            "[.ShellClassInfo]\n"
+            f"IconResource={icon_path},0\n"
+        )
+
+    FILE_ATTRIBUTE_HIDDEN = 0x2
+    FILE_ATTRIBUTE_SYSTEM = 0x4
+    FILE_ATTRIBUTE_READONLY = 0x1
+
+    # Set desktop.ini attributes
+    ctypes.windll.kernel32.SetFileAttributesW(
+        desktop_ini,
+        FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM
+    )
+
+    # Mark folder as customized (important!)
+    ctypes.windll.kernel32.SetFileAttributesW(
+        folder_path,
+        FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM
+    )
+
+    # Notify Explorer correctly
+    SHCNE_UPDATEITEM = 0x00002000
+    SHCNE_UPDATEDIR = 0x00001000
+    SHCNF_PATH = 0x0005
+
+    ctypes.windll.shell32.SHChangeNotify(
+        SHCNE_UPDATEDIR,
+        SHCNF_PATH,
+        folder_path,
+        None
+    )
