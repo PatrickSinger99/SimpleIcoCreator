@@ -57,11 +57,14 @@ REM --- Add context menu entry for general image types ---
 echo Adding context menu...
 
 REM --- Add .webp to general image group ---
-reg add "HKCR\SystemFileAssociations\.webp" /v "PerceivedType" /d "image" /f
 
 reg add "HKCR\SystemFileAssociations\image\shell\ConvertToIco" /ve /d "Convert to ICO" /f
 reg add "HKCR\SystemFileAssociations\image\shell\ConvertToIco" /v "Icon" /d "\"%EXE_PATH%\"" /f
 reg add "HKCR\SystemFileAssociations\image\shell\ConvertToIco\command" /ve /d "\"%EXE_PATH%\" \"%%1\"" /f
+
+reg add "HKCR\SystemFileAssociations\.webp\shell\ConvertToIco" /ve /d "Convert to ICO" /f
+reg add "HKCR\SystemFileAssociations\.webp\shell\ConvertToIco" /v "Icon" /d "\"%EXE_PATH%\"" /f
+reg add "HKCR\SystemFileAssociations\.webp\shell\ConvertToIco\command" /ve /d "\"%EXE_PATH%\" \"%%1\"" /f
 
 echo.
 echo Installation complete.

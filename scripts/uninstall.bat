@@ -23,6 +23,7 @@ echo ========================================
 echo Removing context menu...
 
 reg delete "HKCR\SystemFileAssociations\image\shell\ConvertToIco" /f
+reg delete "HKCR\SystemFileAssociations\.webp\shell\ConvertToIco" /f
 
 echo.
 echo Context menu entry removed.
