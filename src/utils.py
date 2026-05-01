@@ -3,6 +3,7 @@ from typing import Optional, List
 import os
 import ctypes
 import sys
+import uuid
 
 
 def resource_path(relative_path):
@@ -127,7 +128,7 @@ def OLD_set_folder_icon(folder_path, icon_path):
     ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
 
 
-def set_folder_icon(folder_path, icon_path):
+def OLD2_set_folder_icon(folder_path, icon_path):
     desktop_ini = os.path.join(folder_path, "desktop.ini")
 
     if os.path.exists(desktop_ini):
@@ -166,3 +167,67 @@ def set_folder_icon(folder_path, icon_path):
         folder_path,
         None
     )
+
+
+def set_folder_icon(folder_path, icon_path):
+    desktop_ini = os.path.join(folder_path, "desktop.ini")
+
+    FILE_ATTRIBUTE_HIDDEN = 0x2
+    FILE_ATTRIBUTE_SYSTEM = 0x4
+    FILE_ATTRIBUTE_READONLY = 0x1
+
+    # --- STEP 1: Write desktop.ini ---
+    if os.path.exists(desktop_ini):
+        os.remove(desktop_ini)
+
+    with open(desktop_ini, "w") as f:
+        f.write(
+            "[.ShellClassInfo]\n"
+            f"IconResource={icon_path},0\n"
+        )
+
+    ctypes.windll.kernel32.SetFileAttributesW(
+        desktop_ini,
+        FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM
+    )
+
+    ctypes.windll.kernel32.SetFileAttributesW(
+        folder_path,
+        FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_SYSTEM
+    )
+
+    # --- STEP 2: Touch directory (forces filesystem change) ---
+    temp_file = os.path.join(folder_path, f"tmp_{uuid.uuid4().hex}.tmp")
+    try:
+        with open(temp_file, "w") as f:
+            f.write("x")
+        os.remove(temp_file)
+    except Exception:
+        pass
+
+    # --- STEP 3: Notify shell (basic) ---
+    SHCNE_UPDATEDIR = 0x00001000
+    SHCNE_UPDATEITEM = 0x00002000
+    SHCNF_PATH = 0x0005
+
+    shell32 = ctypes.windll.shell32
+
+    shell32.SHChangeNotify(SHCNE_UPDATEDIR, SHCNF_PATH, folder_path, None)
+    shell32.SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATH, desktop_ini, None)
+
+    # --- STEP 4: FORCE icon cache refresh (critical part) ---
+    try:
+        # SHUpdateImageW prototype:
+        # void SHUpdateImageW(LPCWSTR pszHashItem, int iIndex, UINT uFlags, int iImageIndex);
+        SHUpdateImageW = shell32.SHUpdateImageW
+        SHUpdateImageW.argtypes = [ctypes.c_wchar_p, ctypes.c_int, ctypes.c_uint, ctypes.c_int]
+
+        SHGFI_ICON = 0x000000100
+        SHUpdateImageW(icon_path, 0, SHGFI_ICON, 0)
+    except AttributeError:
+        # Not available on some systems, ignore
+        pass
+
+    # --- STEP 5: Final aggressive refresh ---
+    SHCNE_ASSOCCHANGED = 0x08000000
+    shell32.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_PATH, None, None)
