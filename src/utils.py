@@ -4,7 +4,9 @@ import os
 import ctypes
 import sys
 import uuid
-
+import win32com.client
+import time
+import tempfile
 
 def resource_path(relative_path):
     """Get absolute path to resource (works in dev and PyInstaller)"""
@@ -169,7 +171,7 @@ def OLD2_set_folder_icon(folder_path, icon_path):
     )
 
 
-def set_folder_icon(folder_path, icon_path):
+def OLD3_set_folder_icon(folder_path, icon_path):
     desktop_ini = os.path.join(folder_path, "desktop.ini")
 
     FILE_ATTRIBUTE_HIDDEN = 0x2
@@ -231,3 +233,140 @@ def set_folder_icon(folder_path, icon_path):
     # --- STEP 5: Final aggressive refresh ---
     SHCNE_ASSOCCHANGED = 0x08000000
     shell32.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_PATH, None, None)
+
+
+# Windows file attributes
+FILE_ATTRIBUTE_READONLY = 0x1
+FILE_ATTRIBUTE_HIDDEN = 0x2
+FILE_ATTRIBUTE_SYSTEM = 0x4
+
+# Shell notify constants
+SHCNE_UPDATEDIR = 0x00001000
+SHCNE_ASSOCCHANGED = 0x08000000
+SHCNF_PATH = 0x0005
+
+
+def set_folder_icon(folder_path, icon_path):
+    """
+    Sets a custom folder icon and refreshes Explorer
+    as reliably as possible on modern Windows.
+    """
+
+    folder_path = os.path.abspath(folder_path)
+    icon_path = os.path.abspath(icon_path)
+
+    desktop_ini = os.path.join(folder_path, "desktop.ini")
+
+    kernel32 = ctypes.windll.kernel32
+    shell32 = ctypes.windll.shell32
+
+    # --------------------------------------------------
+    # STEP 1: Remove old desktop.ini safely
+    # --------------------------------------------------
+
+    if os.path.exists(desktop_ini):
+
+        # remove protected attrs
+        kernel32.SetFileAttributesW(desktop_ini, 0)
+
+        try:
+            os.remove(desktop_ini)
+        except PermissionError:
+            time.sleep(0.1)
+            kernel32.SetFileAttributesW(desktop_ini, 0)
+            os.remove(desktop_ini)
+
+    # --------------------------------------------------
+    # STEP 2: Clear folder attrs temporarily
+    # --------------------------------------------------
+
+    kernel32.SetFileAttributesW(folder_path, 0)
+
+    # --------------------------------------------------
+    # STEP 3: Create TEMP desktop.ini
+    # --------------------------------------------------
+
+    temp_ini = os.path.join(
+        tempfile.gettempdir(),
+        "desktop.ini"
+    )
+
+    # remove old temp copy if exists
+    if os.path.exists(temp_ini):
+        kernel32.SetFileAttributesW(temp_ini, 0)
+
+        try:
+            os.remove(temp_ini)
+        except Exception:
+            pass
+
+    with open(temp_ini, "w", encoding="utf-8") as f:
+        f.write(
+            "[.ShellClassInfo]\n"
+            f"IconResource={icon_path},0\n"
+        )
+
+    # hidden + system
+    kernel32.SetFileAttributesW(
+        temp_ini,
+        FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM
+    )
+
+    # --------------------------------------------------
+    # STEP 4: Mark folder customized
+    # --------------------------------------------------
+
+    current_attrs = kernel32.GetFileAttributesW(folder_path)
+
+    kernel32.SetFileAttributesW(
+        folder_path,
+        current_attrs |
+        FILE_ATTRIBUTE_READONLY |
+        FILE_ATTRIBUTE_SYSTEM
+    )
+
+    # --------------------------------------------------
+    # STEP 5: Explorer shell namespace refresh
+    # --------------------------------------------------
+
+    shell = win32com.client.Dispatch("Shell.Application")
+
+    folder = shell.NameSpace(folder_path)
+
+    if folder is None:
+        raise RuntimeError(
+            f"Explorer shell could not access folder:\n{folder_path}"
+        )
+
+    # flags:
+    # 4    = no progress UI
+    # 16   = yes to all
+    # 1024 = no error UI
+
+    folder.MoveHere(temp_ini, 4 + 16 + 1024)
+
+    # --------------------------------------------------
+    # STEP 6: Wait a moment for Explorer cache
+    # --------------------------------------------------
+
+    time.sleep(0.2)
+
+    # --------------------------------------------------
+    # STEP 7: Notify Explorer
+    # --------------------------------------------------
+
+    shell32.SHChangeNotify(
+        SHCNE_UPDATEDIR,
+        SHCNF_PATH,
+        folder_path,
+        None
+    )
+
+    shell32.SHChangeNotify(
+        SHCNE_ASSOCCHANGED,
+        SHCNF_PATH,
+        None,
+        None
+    )
+
+    return True
