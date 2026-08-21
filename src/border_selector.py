@@ -20,7 +20,7 @@ class BorderItem:
 
 
 class BorderSelector(tk.Frame):
-    item_size = 70
+    item_size = 54
     item_border_weight = 5
     content_path = resource_path(r".\static\borders")
 
